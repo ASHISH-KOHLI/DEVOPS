@@ -273,19 +273,3 @@ After resizing:
 
 docker system prune -a
 
-Final checklist ✅
-
-✔ Disk already resized at hypervisor
-✔ Root partition expanded
-✔ Filesystem resized
-✔ Docker will work normally
-
-If you want, next I can help you:
-
-Move Docker to a separate disk (best practice)
-
-Set up MySQL with Docker Compose
-
-Optimize VM disk for DevOps labs
-
-Just tell me 👍
