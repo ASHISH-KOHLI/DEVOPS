@@ -1,0 +1,291 @@
+How to increase size of a vm in Ubuntu if it is windows hyperwiser 
+
+* - first increase size from hyperwiser of the disk that you want to attach to the vm
+
+* Step 1: Identify VM disk file (on host)
+
+On the Linux host (not inside VM) run:
+
+virsh list --all
+
+Find your VM name, then:
+
+virsh domblklist <VM_NAME>
+
+You’ll see something like:
+
+vda   /var/lib/libvirt/images/ubuntu.qcow2
+
+
+👉 Note the .qcow2 or .img path.
+
+Step 2: Shutdown the VM (mandatory)
+virsh shutdown <VM_NAME>
+
+
+Wait until it’s completely off:
+
+virsh list --all
+
+
+
+Step 3: Increase disk size (Host machine)
+
+Example: increase disk by +20GB
+
+qemu-img resize /var/lib/libvirt/images/ubuntu.qcow2 +20G
+
+
+Verify:
+
+qemu-img info /var/lib/libvirt/images/ubuntu.qcow2
+
+This only increases the virtual disk, not the filesystem yet.
+
+
+Step 4: Start the VM
+virsh start <VM_NAME>
+
+
+Login to Ubuntu VM.
+
+Step 5: Check disk inside VM
+
+Inside the VM:
+
+lsblk
+
+
+You’ll see something like:
+
+vda      40G
+├─vda1   20G
+└─vda2   19G
+
+
+Disk is larger, but partition isn’t.
+
+Now choose based on partition type 👇
+CASE 1: LVM (most Ubuntu server installs) ✅
+
+Check:
+
+lsblk
+
+
+If you see:
+
+vda
+└─vda3
+  └─ubuntu--vg-ubuntu--lv
+
+
+You’re using LVM.
+
+Step A: Extend partition
+sudo growpart /dev/vda 3
+
+Step B: Resize physical volume
+sudo pvresize /dev/vda3
+
+Step C: Extend logical volume
+sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+
+Step D: Resize filesystem
+
+For ext4:
+
+sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
+
+
+Verify:
+
+df -h
+
+
+🎉 Done.
+
+CASE 2: Non-LVM (single ext4 partition)
+
+Example:
+
+vda
+└─vda1
+
+Step A: Grow partition
+sudo growpart /dev/vda 1
+
+Step B: Resize filesystem
+sudo resize2fs /dev/vda1
+
+
+Verify:
+
+df -h
+
+If growpart not installed
+sudo apt update
+sudo apt install cloud-guest-utils
+
+Common mistakes ❌
+
+❌ Resizing disk while VM is running
+❌ Forgetting filesystem resize
+❌ Editing partitions manually with fdisk (risky)
+
+Quick checklist
+
+✔ VM powered off
+✔ qemu-img resize done on host
+✔ growpart inside VM
+✔ resize2fs done
+
+If you want exact commands for YOUR setup
+
+Send me:
+
+lsblk
+df -h
+
+
+(from inside VM)
+
+And tell me:
+
+Ubuntu Server or Desktop?
+
+LVM or non-LVM?
+
+I’ll tailor it exactly for your VM 💯
+
+lsblk
+
+Please run the command and paste its output, not just the command itself 🙂
+
+Inside the Ubuntu VM, run:
+
+lsblk
+
+
+It will look something like this:
+
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+vda    252:0    0   40G  0 disk
+├─vda1 252:1    0    1G  0 part /boot
+└─vda2 252:2    0   39G  0 part
+  └─ubuntu--vg-ubuntu--lv 253:0 0  19G  0 lvm  /
+
+
+📌 Once you paste the output, I will:
+
+Identify LVM or non-LVM
+
+Give you exact commands (no guesswork)
+
+Help you fix the Docker disk issue permanently
+
+Go ahead, paste the lsblk output 👍
+
+sda       8:0    0    50G  0 disk
+├─sda1    8:1    0  11.9G  0 part /
+├─sda14   8:14   0     4M  0 part
+└─sda15   8:15   0   106M  0 part /boot/efi
+
+Perfect 👍
+Thanks for the output — this makes it very clear.
+
+You have:
+
+Disk: sda → 50 GB
+
+Root partition: sda1 → only 11.9 GB
+
+NOT using LVM
+
+Free space is unallocated on the disk
+
+We just need to expand sda1 safely.
+
+✅ SAFE & CORRECT METHOD (Non-LVM Ubuntu)
+Step 1: Install required tool (if not present)
+sudo apt update
+sudo apt install -y cloud-guest-utils
+
+
+This gives you growpart.
+
+Step 2: Grow the root partition
+sudo growpart /dev/sda 1
+
+
+Expected output (example):
+
+CHANGED: partition=1 start=2048 old: size=24903680 end=24905728 new: size=104855519 end=104857567
+
+
+⚠️ If you see CHANGED, it worked.
+
+Step 3: Resize filesystem (EXT4)
+
+Your / is ext4, so run:
+
+sudo resize2fs /dev/sda1
+
+
+This expands the filesystem to use full 50 GB.
+
+Step 4: Verify
+df -h
+
+
+You should now see something like:
+
+Filesystem      Size  Used  Avail  Use%
+/dev/sda1        49G   8G    38G    18%
+
+
+🎉 Done! Disk successfully increased
+
+Why this fixes your Docker error
+
+Earlier error:
+
+no space left on device
+
+
+Docker stores data in:
+
+/var/lib/docker
+
+
+That lives on /, which was only 11.9 GB.
+
+Now you have ~50 GB, so:
+
+docker pull mysql
+
+
+will work without issues.
+
+Optional: Clean old Docker data (recommended)
+
+After resizing:
+
+docker system prune -a
+
+Final checklist ✅
+
+✔ Disk already resized at hypervisor
+✔ Root partition expanded
+✔ Filesystem resized
+✔ Docker will work normally
+
+If you want, next I can help you:
+
+Move Docker to a separate disk (best practice)
+
+Set up MySQL with Docker Compose
+
+Optimize VM disk for DevOps labs
+
+Just tell me 👍
