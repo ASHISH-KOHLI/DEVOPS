@@ -1,0 +1,337 @@
+RKE2 Air-Gap Installation on Ubuntu Using Ansible (Single Node)
+1. Overview
+This document describes the process of deploying RKE2 Kubernetes in an air-gapped environment using Ansible automation on Ubuntu.
+Air-gap installations are used in environments where servers do not have internet access, such as secure enterprise networks, government infrastructure, or banking systems.
+In this setup:
+RKE2 artifacts are downloaded on an internet-enabled machine.
+
+
+Files are transferred to the target node using Ansible.
+
+
+Kubernetes is installed and configured automatically.
+
+
+
+2. Environment Details
+Component
+Value
+Kubernetes Distribution
+RKE2
+Deployment Type
+Air-Gap
+Automation Tool
+Ansible
+Operating System
+Ubuntu
+Cluster Type
+Single Node
+Control Node
+ansible-machine
+Target Node
+192.168.50.28
+
+The target node runs both:
+Control Plane
+
+
+Worker Node
+
+
+
+3. Architecture
+Internet Machine
+     │
+Download RKE2 Artifacts
+     │
+     ▼
+Ansible Control Node
+(ansible-playbook)
+     │
+SSH Connection
+     │
+     ▼
+Ubuntu Target Server
+├── RKE2 Server
+├── containerd
+├── Kubernetes API
+└── System Pods
+
+4. Prerequisites
+On the Ansible Machine
+Install Ansible and required tools:
+sudo apt update
+sudo apt install ansible curl tar -y
+Verify installation:
+ansible --version
+
+5. Download RKE2 Air-Gap Artifacts
+Create directory for artifacts:
+mkdir -p ~/ansible-airgap/files/rke2-airgap
+cd ~/ansible-airgap/files/rke2-airgap
+Download required files from the RKE2 release page.
+Required files:
+install.sh
+rke2.linux-amd64.tar.gz
+rke2-images.linux-amd64.tar.zst
+sha256sum-amd64.txt
+These files allow RKE2 installation without internet access.
+Final directory structure:
+files/rke2-airgap/
+├── install.sh
+├── rke2.linux-amd64.tar.gz
+├── rke2-images.linux-amd64.tar.zst
+└── sha256sum-amd64.txt
+
+6. Ansible Project Structure
+The Ansible project directory is structured as follows:
+ansible-airgap/
+│
+├── deploy.yml
+├── inventory.ini
+│
+└── files
+   └── rke2-airgap
+       ├── install.sh
+       ├── rke2.linux-amd64.tar.gz
+       ├── rke2-images.linux-amd64.tar.zst
+       └── sha256sum-amd64.txt
+
+7. Configure Ansible Inventory
+Create an inventory file.
+inventory.ini
+[rke2]
+192.168.50.28 ansible_user=ubuntu
+Test connectivity:
+ansible -i inventory.ini rke2 -m ping --ask-pass
+Expected result:
+SUCCESS => pong
+
+8. Ansible Playbook
+The deployment is automated using deploy.yml.
+This playbook performs the following tasks:
+Disable system swap
+
+
+Install required packages
+
+
+Create RKE2 directories
+
+
+Copy air-gap artifacts
+
+
+Install RKE2 using local files
+
+
+Start RKE2 server
+
+
+Configure kubectl
+
+
+Verify Kubernetes cluster
+
+
+
+9. Run the Deployment
+Execute the playbook from the Ansible machine:
+ansible-playbook -i inventory.ini deploy.yml --ask-pass --ask-become-pass
+During execution:
+Ansible connects to the target node via SSH
+
+
+Copies RKE2 artifacts
+
+
+Installs RKE2
+
+
+Starts the Kubernetes cluster
+
+
+
+10. RKE2 Installation Process
+During the deployment the following operations occur.
+Disable Swap
+Swap must be disabled for Kubernetes to work properly.
+swapoff -a
+
+Install Dependencies
+Required packages:
+curl
+tar
+
+Create Required Directories
+/etc/rancher/rke2
+/var/lib/rancher/rke2/agent/images
+These directories store configuration and container images.
+
+Copy Air-Gap Files
+Ansible copies the artifact directory to the target node:
+/tmp/rke2-airgap
+
+Move Container Images
+The image archive is placed in:
+/var/lib/rancher/rke2/agent/images/
+RKE2 automatically loads these images during startup.
+
+Install RKE2
+Installation uses the local artifact path:
+INSTALL_RKE2_ARTIFACT_PATH=/tmp/rke2-airgap sh /tmp/rke2-airgap/install.sh
+
+11. Start RKE2 Server
+After installation the service is enabled and started.
+systemctl enable rke2-server
+systemctl start rke2-server
+Check service status:
+sudo systemctl status rke2-server
+Expected output:
+Active: active (running)
+
+12. Configure kubectl
+Create Kubernetes config directory:
+/home/ubuntu/.kube
+Copy kubeconfig file:
+/etc/rancher/rke2/rke2.yaml
+Set environment variable:
+export KUBECONFIG=/home/ubuntu/.kube/config
+This allows the ubuntu user to run kubectl commands without sudo.
+
+13. Verify Kubernetes Cluster
+Check cluster nodes:
+kubectl get nodes
+Example output:
+NAME            STATUS   ROLES
+ubuntu-vm-1     Ready    control-plane,etcd,master
+
+Check system pods:
+kubectl get pods -A
+Common system components include:
+kube-system
+├── coredns
+├── canal
+├── metrics-server
+└── ingress-nginx
+
+14. Cluster Verification Commands
+Common commands used to verify cluster health:
+kubectl get nodes
+kubectl get pods -A
+kubectl cluster-info
+kubectl get svc -A
+Check RKE2 logs:
+sudo journalctl -u rke2-server -f
+
+15. Result
+After successful deployment:
+A single-node Kubernetes cluster is running.
+
+
+RKE2 manages the Kubernetes control plane.
+
+
+Container runtime containerd is installed automatically.
+
+
+kubectl is configured for the ubuntu user.
+
+
+Core Kubernetes system pods are running.
+
+
+Deploy.yml
+
+
+
+---
+- hosts: rke2
+  become: yes
+
+  tasks:
+
+  - name: Disable swap
+    command: swapoff -a
+
+  - name: Install dependencies
+    apt:
+      name:
+        - curl
+        - tar
+      state: present
+      update_cache: yes
+
+  - name: Create required directories
+    file:
+      path: "{{ item }}"
+      state: directory
+      mode: '0755'
+    loop:
+      - /etc/rancher/rke2
+      - /var/lib/rancher/rke2/agent/images
+
+  - name: Copy airgap files
+    copy:
+      src: files/rke2-airgap/
+      dest: /tmp/rke2-airgap/
+      mode: '0755'
+
+  - name: Move airgap images
+    command: cp /tmp/rke2-airgap/rke2-images.linux-amd64.tar.zst /var/lib/rancher/rke2/agent/images/
+
+  - name: Install RKE2
+    shell: INSTALL_RKE2_ARTIFACT_PATH=/tmp/rke2-airgap sh /tmp/rke2-airgap/install.sh
+
+  - name: Enable and start RKE2
+    systemd:
+      name: rke2-server
+      enabled: yes
+      state: started
+
+  - name: Create kubectl symlink
+    file:
+      src: /var/lib/rancher/rke2/bin/kubectl
+      dest: /usr/local/bin/kubectl
+      state: link
+
+  - name: Wait for kubeconfig to be created
+    wait_for:
+      path: /etc/rancher/rke2/rke2.yaml
+      timeout: 300
+
+  - name: Wait for Kubernetes API server
+    wait_for:
+      port: 6443
+      delay: 10
+      timeout: 300
+
+  - name: Create .kube directory for ubuntu
+    file:
+      path: /home/ubuntu/.kube
+      state: directory
+      owner: ubuntu
+      group: ubuntu
+      mode: '0755'
+
+  - name: Copy kubeconfig for ubuntu user
+    copy:
+      src: /etc/rancher/rke2/rke2.yaml
+      dest: /home/ubuntu/.kube/config
+      remote_src: yes
+      owner: ubuntu
+      group: ubuntu
+      mode: '0600'
+
+  - name: Set KUBECONFIG in ubuntu bashrc
+    lineinfile:
+      path: /home/ubuntu/.bashrc
+      line: export KUBECONFIG=/home/ubuntu/.kube/config
+      create: yes
+
+  - name: Verify cluster
+    command: kubectl get nodes
+    environment:
+      KUBECONFIG: /home/ubuntu/.kube/config
+
+
