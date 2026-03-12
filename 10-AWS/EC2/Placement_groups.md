@@ -54,11 +54,13 @@ Cluster Placement Group
 
 ## Pros
 
-* Best network performance
+* Best network performance ( 10 Gbps bandwidth between instances with enhanced networking enabled )
 * Lowest latency
+
 
 ## Cons
 
+* If the AZ falis all instances failes at the same time
 * Single Availability Zone only
 * Risk of correlated failures
 
@@ -88,6 +90,8 @@ Small number of **critical servers** such as:
 * Licensing servers
 * Domain controllers
 * Critical microservices
+* Application that need to maximize high availability
+* critial application where each instance must be isolated  from failure from each other.
 
 ## Example
 
@@ -106,6 +110,9 @@ If one rack fails, only one instance is affected.
 
 * Highest fault isolation
 * Prevents simultaneous hardware failure
+* can span across (AZ)
+* Ec2 instances are on different hardware
+
 
 ## Cons
 
@@ -127,6 +134,7 @@ Instances are divided into **partitions**, and each partition is placed on **sep
 ## Key Characteristics
 
 * Up to **7 partitions per Availability Zone**
+* Can span across multiple AZ across in the same region.
 * Each partition can contain **many instances**
 * Failures affect only **one partition**
 
