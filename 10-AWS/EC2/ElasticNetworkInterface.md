@@ -125,3 +125,124 @@ aws ec2 attach-network-interface \
 ---
 
 
+# AWS ENI – Create and Attach
+
+## Overview
+
+An **Elastic Network Interface (ENI)** is a virtual network card that can be attached to an EC2 instance inside a VPC. It enables network communication and contains networking attributes such as IP addresses, MAC address, and security groups.
+
+---
+
+# How to Create and Attach an ENI
+
+## 1. Create an ENI (AWS Console)
+
+1. Log in to the AWS Management Console.
+2. Navigate to **EC2 Dashboard**.
+3. In the left sidebar, select **Network Interfaces** under **Network & Security**.
+4. Click **Create Network Interface**.
+5. Configure the following:
+
+| Setting         | Description                                 |
+| --------------- | ------------------------------------------- |
+| Subnet          | Select the subnet where ENI will be created |
+| Private IPv4    | Auto-assign or manually assign              |
+| Security Groups | Attach security groups                      |
+| Description     | Optional description                        |
+
+6. Click **Create Network Interface**.
+
+The ENI will now be created and ready to attach to an instance.
+
+---
+
+# 2. Attach ENI to EC2 Instance
+
+1. Go to **Network Interfaces** in the EC2 console.
+2. Select the ENI you created.
+3. Click **Actions → Attach**.
+4. Select the **EC2 instance**.
+5. Specify the **Device Index**.
+
+| Device Index | Interface      |
+| ------------ | -------------- |
+| 0            | eth0 (Primary) |
+| 1            | eth1           |
+| 2            | eth2           |
+
+6. Click **Attach**.
+
+---
+
+# AWS CLI Method
+
+## Create ENI
+
+```bash
+aws ec2 create-network-interface \
+--subnet-id subnet-123456 \
+--groups sg-123456 \
+--description "My ENI"
+```
+
+---
+
+## Attach ENI
+
+```bash
+aws ec2 attach-network-interface \
+--network-interface-id eni-123456 \
+--instance-id i-123456 \
+--device-index 1
+```
+
+---
+
+# Verify ENI
+
+```bash
+aws ec2 describe-network-interfaces
+```
+
+---
+
+# Workflow Diagram
+
+```
+Create ENI
+   ↓
+Select Subnet
+   ↓
+Assign Security Groups
+   ↓
+Attach to EC2 Instance
+   ↓
+Choose Device Index (eth0 / eth1)
+```
+
+---
+
+# Important Notes
+
+* ENI must be in the **same Availability Zone** as the EC2 instance.
+* **Primary ENI cannot be detached**.
+* Only **secondary ENIs can be attached or detached**.
+* The **number of ENIs depends on the EC2 instance type**.
+
+---
+
+# Interview Answer (Short)
+
+**Question:** How do you create and attach an ENI?
+
+**Answer:**
+
+1. Go to EC2 → Network Interfaces.
+2. Click **Create Network Interface** and configure subnet, IP, and security groups.
+3. After creation, select the ENI.
+4. Click **Actions → Attach**.
+5. Choose the EC2 instance and specify the device index.
+6. Attach the ENI.
+
+
+
